@@ -68,26 +68,27 @@
 
     get("data/data.json", function (text) {
         const data = JSON.parse(text);
-        console.log(data);
-
         maps = data.maps;
 
         //TODO read url params and try to select
         const select = document.getElementById("mapSelect");
         select.options.length = 0;
         for (let map of maps) {
-            select.add(new Option(map.name, map));
+            select.add(new Option(map.name, "" + map.id));
             for (let point of map.points) {
                 point.x = -point.x;
             }
         }
 
-        let index = maps.indexOf(maps[0]);
-        if (index > 0) {
-            select.options[index].selected = true;
-        }
+        select.options[0].selected = true;
         select.onchange = ev => {
-            loadMap(select.options[select.selectedIndex].value);
+            for (let map of maps) {
+                if (("" + map.id) === select.options[select.selectedIndex].value) {
+                    loadMap(map);
+                    loadPoint(currentMap.points[0]);
+                    return;
+                }
+            }
         };
 
         loadMap(maps[0]);
@@ -116,7 +117,7 @@
 
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
 
-        controlsMouse = new THREE.OrbitControls(camera);
+        controlsMouse = new THREE.OrbitControls(camera, renderer.domElement);
         controlsMouse.enableZoom = false;
         controlsMouse.enablePan = false;
         controlsMouse.target.z = 0.1;
@@ -208,6 +209,7 @@
 
     function animate() {
         controlsOrientation.enabled = checkDeviceOrientation.checked;
+        controlsMouse.enabled = !checkDeviceOrientation.checked;
         if (checkDeviceOrientation.checked) {
             controlsOrientation.update();
         } else {
