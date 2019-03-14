@@ -7,35 +7,45 @@ import { DrawablePanorama } from './drawable/DrawablePanorama';
 import { DrawableFootprint } from './drawable/DrawableFootprint';
 
 class App {
-    private mCanvas: HTMLCanvasElement = null;
-    private mEngine: BABYLON.Engine = null;
+    private canvas: HTMLCanvasElement;
+    private checkDeviceOrientation: HTMLInputElement;
 
-    private scene: BABYLON.Scene = null;
-    private camera: BABYLON.UniversalCamera = null;
-    private panorama: DrawablePanorama = null;
+    private engine: BABYLON.Engine;
+    private scene: BABYLON.Scene;
+    private cameraTouch: BABYLON.FreeCamera;
+    private cameraOrientation: BABYLON.DeviceOrientationCamera;
+    private panorama: DrawablePanorama;
     private footprints: DrawableFootprint[] = [];
-    private footprintSpriteManager: BABYLON.SpriteManager = null;
+    private footprintSpriteManager: BABYLON.SpriteManager;
 
     private maps: Zone[] = [];
 
     constructor() {
-        this.mCanvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
-        this.mEngine = new BABYLON.Engine(this.mCanvas, true);
+        this.canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
+        this.checkDeviceOrientation = document.getElementById('deviceOrientation') as HTMLInputElement;
+
+        this.engine = new BABYLON.Engine(this.canvas, true, new BABYLON.NullEngineOptions, true);
 
         let scene: BABYLON.Scene = this.createScene();
-        this.mEngine.runRenderLoop(() => {
+        this.engine.runRenderLoop(() => {
+            if (this.checkDeviceOrientation && this.checkDeviceOrientation.checked) {
+                this.scene.activeCameras = [this.cameraOrientation];
+            } else {
+                this.scene.activeCameras = [this.cameraTouch];
+            }
+            this.cameraOrientation.setEnabled(this.checkDeviceOrientation.checked);
+            this.cameraTouch.setEnabled(!this.checkDeviceOrientation.checked);
             scene.render();
         });
 
         window.addEventListener("resize", () => {
-            this.mEngine.resize();
+            this.engine.resize();
         });
 
-        let self = this;
-        scene.onPointerDown = function (evt) {
-            var pickResult = scene.pickSprite(this.pointerX, this.pointerY);
+        scene.onPointerDown = evt => {
+            var pickResult = scene.pickSprite(scene.pointerX, scene.pointerY);
             if (pickResult.hit) {
-                self.onPickFootprint(pickResult.pickedSprite);
+                this.onPickFootprint(pickResult.pickedSprite);
             }
         };
 
@@ -43,19 +53,24 @@ class App {
     }
 
     private createScene(): BABYLON.Scene {
-        this.scene = new BABYLON.Scene(this.mEngine);
+        this.scene = new BABYLON.Scene(this.engine);
         this.scene.fogMode = BABYLON.Scene.FOGMODE_EXP;
         this.scene.fogDensity = 0.01;
         this.scene.fogStart = 5.0;
         this.scene.fogEnd = 200.0;
         this.scene.fogColor = new BABYLON.Color3(0.9, 0.9, 0.85);
 
-        this.camera = new BABYLON.UniversalCamera("Camera", BABYLON.Vector3.Zero(), this.scene);
-        this.camera.attachControl(this.mCanvas, true);
-        this.camera.fov = Math.PI / 3;
-        this.camera.maxZ = 1000;
+        this.cameraTouch = new BABYLON.FreeCamera("Camera", BABYLON.Vector3.Zero(), this.scene);
+        this.cameraTouch.fov = Math.PI / 3;
+        this.cameraTouch.attachControl(this.canvas, true);
 
-        this.panorama = new DrawablePanorama(this.scene, this.camera);
+        this.cameraOrientation = new BABYLON.DeviceOrientationCamera("Camera", BABYLON.Vector3.Zero(), this.scene);
+        this.cameraOrientation.fov = Math.PI / 3;
+        this.cameraOrientation.attachControl(this.canvas, true);
+
+        this.scene.activeCameras = [this.cameraTouch];
+
+        this.panorama = new DrawablePanorama(this.scene, this.cameraTouch);
 
         this.footprintSpriteManager = new BABYLON.SpriteManager("SpriteManager", "texture/footprint.png", 100, 512, this.scene);
         this.footprintSpriteManager.isPickable = true;
@@ -97,9 +112,13 @@ class App {
     private loadPoint(point: Point) {
         this.panorama.unload();
         this.panorama.load(point);
-        this.camera.position.x = point.x;
-        this.camera.position.y = point.y;
-        this.camera.position.z = point.z;
+
+        this.cameraTouch.position.x = point.x;
+        this.cameraTouch.position.y = point.y;
+        this.cameraTouch.position.z = point.z;
+        this.cameraOrientation.position.x = point.x;
+        this.cameraOrientation.position.y = point.y;
+        this.cameraOrientation.position.z = point.z;
 
         this.footprintShowHide(point);
     }
