@@ -1,0 +1,20 @@
+{
+    "name": "ds3-panorama-viewer",
+    "version": "1.0.0",
+    "description": "",
+    "main": "app.js",
+    "scripts": {
+        "build": "webpack",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "devDependencies": {
+        "babylonjs": "^3.3.0",
+        "ts-loader": "^5.3.3",
+        "typescript": "^3.3.3333",
+        "webpack": "^4.29.6",
+        "webpack-cli": "^3.2.3"
+    },
+    "dependencies": {}
+}

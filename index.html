@@ -1,15 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <title>Dark Souls III - Panorama</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        html, body {
-            background-color: #000;
+        html,
+        body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            text-align: center;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
         }
 
         #mapSelect {
@@ -26,213 +36,19 @@
             left: 5px;
             z-index: 999;
         }
-
     </style>
 </head>
+
 <body>
-<div id="container"></div>
+    <canvas id="renderCanvas"></canvas>
 
-<script src="three.js"></script>
-<script src="OrbitControls.js"></script>
-<script src="DeviceOrientationControls.js"></script>
+    <script src="dist/app.js"></script>
 
-<select id="mapSelect"></select>
-<div id="checkDiv">
-    <input type="checkbox" id="deviceOrientation" value="false">
-    <label id="labelCheck" for="deviceOrientation">device orientation</label>
-</div>
-
-<script>
-    function get(url, callback) {
-        const request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState === 4 && request.status === 200) {
-                callback(request.responseText);
-            }
-        };
-        request.open("GET", url, true);
-        request.send();
-    }
-
-    let camera, controlsMouse, controlsOrientation;
-    let renderer;
-    let scene, raycaster, mouse, clicked;
-    let textureLoader, texture, material, geometry;
-    let maps;
-
-    let currentMap, currentFootprints, currentPoint;
-    let checkDeviceOrientation;
-
-    init();
-    animate();
-
-    get("data/data.json", function (text) {
-        const data = JSON.parse(text);
-        maps = data.maps;
-
-        //TODO read url params and try to select
-        const select = document.getElementById("mapSelect");
-        select.options.length = 0;
-        for (let map of maps) {
-            select.add(new Option(map.name, "" + map.id));
-            for (let point of map.points) {
-                point.x = -point.x;
-            }
-        }
-
-        select.options[0].selected = true;
-        select.onchange = ev => {
-            for (let map of maps) {
-                if (("" + map.id) === select.options[select.selectedIndex].value) {
-                    loadMap(map);
-                    loadPoint(currentMap.points[0]);
-                    return;
-                }
-            }
-        };
-
-        loadMap(maps[0]);
-        loadPoint(maps[0].points[0]);
-    });
-
-    function init() {
-        checkDeviceOrientation = document.getElementById('deviceOrientation');
-        const container = document.getElementById('container');
-
-        renderer = new THREE.WebGLRenderer();
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement);
-
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf2f7ff);
-        scene.fog = new THREE.Fog(0xf2f7ff, 5, 200);
-
-        textureLoader = new THREE.TextureLoader();
-        let maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
-        texture = textureLoader.load("texture/footprint.png");
-        material = new THREE.MeshBasicMaterial({transparent: true, color: 0xffffff, map: texture, side: THREE.DoubleSide});
-        texture.anisotropy = maxAnisotropy;
-        geometry = new THREE.PlaneBufferGeometry(2, 2, 1, 1);
-
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
-
-        controlsMouse = new THREE.OrbitControls(camera, renderer.domElement);
-        controlsMouse.enableZoom = false;
-        controlsMouse.enablePan = false;
-        controlsMouse.target.z = 0.1;
-        controlsMouse.rotateSpeed = -0.5;
-
-        controlsOrientation = new THREE.DeviceOrientationControls(camera);
-
-        mouse = new THREE.Vector2();
-        raycaster = new THREE.Raycaster();
-
-        window.addEventListener('resize', onWindowResize, false);
-        renderer.domElement.addEventListener('mousemove', onDocumentMouseMove, false);
-        renderer.domElement.addEventListener('click', onDocumentMouseClick, false);
-    }
-    function onDocumentMouseMove(event) {
-        event.preventDefault();
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }
-    function onDocumentMouseClick(event) {
-        event.preventDefault();
-        clicked = true;
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }
-
-    function loadMap(map) {
-        currentMap = map;
-        currentFootprints = [];
-
-        while (scene.children.length > 0) {
-            scene.remove(scene.children[0]);
-        }
-
-        for (let point of map.points) {
-            let plane = new THREE.Mesh(geometry, material);
-            plane.rotation.x = Math.PI / 2;
-            plane.position.x = point.x;
-            plane.position.y = point.y - 2;
-            plane.position.z = point.z;
-            scene.add(plane);
-            plane.userData = point;
-
-            currentFootprints.push(plane);
-        }
-
-        renderer.renderLists.dispose();
-    }
-
-    function loadPoint(point) {
-        currentPoint = point;
-
-        let dx = point.x - camera.position.x;
-        let dy = point.y - camera.position.y;
-        let dz = point.z - camera.position.z;
-        let offset = new THREE.Vector3(dx, dy, dz);
-        camera.position.add(offset);
-        controlsMouse.target.add(offset);
-
-        let curr = new THREE.Vector3();
-        for (let footprint of currentFootprints) {
-            if (footprint.userData === point) {
-                footprint.visible = false;
-            } else {
-                footprint.visible = true;
-                // slower than linear shrinking by distance
-                let length = curr.copy(footprint.position).sub(camera.position).length();
-                let scale = Math.sqrt(length / 16);
-                footprint.scale.set(scale, scale, scale);
-                footprint.lookAt(camera.position);
-            }
-        }
-
-        const path = `data/${point.mapId}/${point.id}/`;
-        const format = '.jpg';
-        const urls = [
-            path + 'px' + format, path + 'nx' + format,
-            path + 'py' + format, path + 'ny' + format,
-            path + 'pz' + format, path + 'nz' + format
-        ];
-        scene.background = new THREE.CubeTextureLoader().load(urls);
-    }
-
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate() {
-        controlsOrientation.enabled = checkDeviceOrientation.checked;
-        controlsMouse.enabled = !checkDeviceOrientation.checked;
-        if (checkDeviceOrientation.checked) {
-            controlsOrientation.update();
-        } else {
-            controlsMouse.update();
-        }
-
-        if (currentFootprints) {
-            raycaster.setFromCamera(mouse, camera);
-            let intersects = raycaster.intersectObjects(currentFootprints);
-            if (intersects.length > 0) {
-                if (clicked) {
-                    loadPoint(intersects[0].object.userData);
-                }
-                renderer.domElement.style.cursor = "pointer";
-            } else {
-                renderer.domElement.style.cursor = "auto";
-            }
-        }
-        clicked = false;
-
-        renderer.render(scene, camera);
-        requestAnimationFrame(animate);
-    }
-</script>
+    <select id="mapSelect"></select>
+    <div id="checkDiv">
+        <input type="checkbox" id="deviceOrientation" value="false">
+        <label id="labelCheck" for="deviceOrientation">device orientation</label>
+    </div>
 </body>
+
 </html>
