@@ -20,5 +20,10 @@ module.exports = {
     filename: 'app.js',
     path: path.resolve(__dirname, 'dist')
   },
+  externals: {
+    oimo: 'OIMO',
+    cannon: 'CANNON',
+    earcut: 'EARCUT',
+  },
   watch: true,
 };

@@ -68,6 +68,9 @@ class App {
         this.cameraOrientation.fov = Math.PI / 3;
         this.cameraOrientation.attachControl(this.canvas, true);
 
+        this.cameraTouch.angularSensibility = -this.cameraTouch.angularSensibility;
+        this.cameraOrientation.angularSensibility = -this.cameraOrientation.angularSensibility;
+
         this.scene.activeCameras = [this.cameraTouch];
 
         this.panorama = new DrawablePanorama(this.scene, this.cameraTouch);
